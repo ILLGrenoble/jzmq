@@ -1,17 +1,22 @@
 # CMake build script for ØMQ Java bindings on Windows
 
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.20)
 
 project (JZMQ)
 find_package (Java REQUIRED)
 find_package (JNI REQUIRED)
+find_package (ZeroMQ QUIET)
 
+if(NOT ZeroMQ_FOUND)
+  message(STATUS "ZeroMQ was not found by package")
+endif()
 
 set(ZMQ_C_INCLUDE_PATH "" CACHE PATH "Path to ZMQ Header files")
 set(ZMQ_C_LIB_PATH "" CACHE PATH "Path to ZMQ library")
 
-find_program (JNI_JAVAH
-  NAMES javah
+# Search for javac which replaces javah
+find_program (JNI_JAVAC
+  NAMES javac
 	HINTS ${_JAVA_HINTS}
 	PATHS ${_JAVA_PATHS}
 )
@@ -73,11 +78,14 @@ set(java-sources
 set(java-classes
 	org/zeromq/ZMQ.class
 	org/zeromq/Utils.class
-	org/zeromq/ZMQ$$Context.class
-	org/zeromq/ZMQ$$Socket.class
-	org/zeromq/ZMQ$$PollItem.class
-	org/zeromq/ZMQ$$Poller.class
-	org/zeromq/ZMQ$$Error.class				
+	org/zeromq/ZMQ$Context.class
+	org/zeromq/ZMQ$Curve$KeyPair.class
+	org/zeromq/ZMQ$Curve.class
+	org/zeromq/ZMQ$Socket.class
+	org/zeromq/ZMQ$PollItem.class
+	org/zeromq/ZMQ$Poller.class
+	org/zeromq/ZMQ$Error.class
+	org/zeromq/ZMQ$Event.class
 	org/zeromq/ZMQException.class
 	org/zeromq/ZMQQueue.class
 	org/zeromq/ZMQForwarder.class
@@ -86,23 +94,22 @@ set(java-classes
 	org/zeromq/App.class
 	org/zeromq/ZContext.class
 	org/zeromq/ZDispatcher.class
-	org/zeromq/ZDispatcher$$1.class
-	org/zeromq/ZDispatcher$$SocketDispatcher$$1.class
-	org/zeromq/ZDispatcher$$SocketDispatcher$$2.class
-	org/zeromq/ZDispatcher$$SocketDispatcher$$ZMessageBuffer.class
-	org/zeromq/ZDispatcher$$SocketDispatcher.class
-	org/zeromq/ZDispatcher$$ZMessageHandler.class
-	org/zeromq/ZDispatcher$$ZSender.class
+	org/zeromq/ZDispatcher$SocketDispatcher$1.class
+	org/zeromq/ZDispatcher$SocketDispatcher$2.class
+	org/zeromq/ZDispatcher$SocketDispatcher$ZMessageBuffer.class
+	org/zeromq/ZDispatcher$SocketDispatcher.class
+	org/zeromq/ZDispatcher$ZMessageHandler.class
+	org/zeromq/ZDispatcher$ZSender.class
 	org/zeromq/ZFrame.class
 	org/zeromq/ZMsg.class
 	org/zeromq/ZLoop.class
-	org/zeromq/ZLoop$$IZLoopHandler.class
-	org/zeromq/ZLoop$$SPoller.class
-	org/zeromq/ZLoop$$STimer.class
+	org/zeromq/ZLoop$IZLoopHandler.class
+	org/zeromq/ZLoop$SPoller.class
+	org/zeromq/ZLoop$STimer.class
 	org/zeromq/ZThread.class
-	org/zeromq/ZThread$$IAttachedRunnable.class
-	org/zeromq/ZThread$$IDetachedRunnable.class
-	org/zeromq/ZThread$$ShimThread.class
+	org/zeromq/ZThread$IAttachedRunnable.class
+	org/zeromq/ZThread$IDetachedRunnable.class
+	org/zeromq/ZThread$ShimThread.class
 )
 set(javah-headers
 	org_zeromq_ZMQ.h
@@ -160,10 +167,10 @@ list(APPEND sources ${CMAKE_CURRENT_BINARY_DIR}/config.hpp)
 
 add_custom_command(
 	OUTPUT ${javah-headers}
-	COMMAND ${JNI_JAVAH}
-	ARGS	-jni
-		-classpath ${CMAKE_CURRENT_BINARY_DIR}
-		org.zeromq.ZMQ
+	COMMAND ${JNI_JAVAC}
+	ARGS ${CMAKE_CURRENT_SOURCE_DIR}/src/main/java/org/zeromq/ZMQ.java
+	     -cp ${CMAKE_CURRENT_BINARY_DIR}
+	     -h ${CMAKE_CURRENT_BINARY_DIR}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 	DEPENDS ${java-classes}
 )
@@ -200,7 +207,13 @@ list(APPEND sources lib/zmq.jar)
 # output
 
 add_library(jzmq SHARED ${sources})
-target_link_libraries(jzmq libzmq.lib)
+
+if(ZeroMQ_FOUND)
+  target_link_libraries(jzmq PRIVATE libzmq)
+else()
+  target_link_libraries(jzmq libzmq.lib)
+endif()
+
 
 set(docs
     AUTHORS
